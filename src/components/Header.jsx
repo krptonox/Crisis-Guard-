@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import useStore from '../store/useStore';
 import { searchCountries } from '../utils/countries';
 
@@ -127,6 +128,14 @@ export default function Header() {
           )}
         </div>
 
+        {/* ── Nav links (center) ── */}
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <HeaderNavLink to="/" label="🌐 Globe" />
+          <HeaderNavLink to="/forensics" label="🔬 Forensics" />
+          <HeaderNavLink to="/how-it-works" label="🛡️ How It Works" />
+          <HeaderNavLink to="/about" label="ℹ️ About" />
+        </nav>
+
         {/* ── Right: status + clock ── */}
         <div className="flex items-center gap-5 shrink-0">
           {/* Live indicator */}
@@ -147,16 +156,33 @@ export default function Header() {
           </div>
 
           <ClockDisplay />
-
-          {/* Settings icon */}
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-all">
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.02 7.02 0 0 0-1.62-.94l-.36-2.54A.484.484 0 0 0 14 2h-4c-.25 0-.46.18-.49.42l-.36 2.54a7.02 7.02 0 0 0-1.62.94L5.14 4.94a.49.49 0 0 0-.59.22L2.63 8.48a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.13.24.39.32.59.22l2.39-.96c.5.36 1.04.66 1.62.94l.36 2.54c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.36-2.54a7.02 7.02 0 0 0 1.62-.94l2.39.96c.22.09.46 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.02-1.58z"/>
-            </svg>
-          </button>
         </div>
       </div>
     </header>
+  );
+}
+
+/* ── Reusable nav link with active state ── */
+function HeaderNavLink({ to, label }) {
+  const location = useLocation();
+  const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+  return (
+    <Link
+      to={to}
+      style={{
+        padding: '4px 12px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: 600,
+        textDecoration: 'none',
+        transition: 'all 0.2s',
+        background: isActive ? 'rgba(6,182,212,0.12)' : 'transparent',
+        color: isActive ? '#06b6d4' : '#64748b',
+        border: isActive ? '1px solid rgba(6,182,212,0.25)' : '1px solid transparent',
+        letterSpacing: '0.02em',
+      }}
+    >
+      {label}
+    </Link>
   );
 }
