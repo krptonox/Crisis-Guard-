@@ -58,9 +58,12 @@ def calculate_file_hash(file_path: str) -> str:
 
 
 def compute_verdict(confidence: float) -> str:
-    if confidence >= 68:
+    # Raised thresholds to eliminate false-positives on real/authentic images.
+    # Suspicious: was 38, now 52 — needs multiple corroborating signals
+    # Tampered:   was 68, now 74 — requires strong high-severity evidence
+    if confidence >= 74:
         return "Tampered"
-    elif confidence >= 38:
+    elif confidence >= 52:
         return "Suspicious"
     else:
         return "Authentic"
@@ -164,7 +167,7 @@ def generate_recommendations(verdict: str, findings: List[Dict], file_type: str)
 def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
     findings = []
     analysis_breakdown = {}
-    confidence = 30.0  # Start at 30 (lean authentic)
+    confidence = 18.0  # Start low — only strong corroborating signals push above 52 (Suspicious)
 
     try:
         img = cv2.imread(file_path)
@@ -192,29 +195,31 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
             "interpretation": "HIGH" if ela_score > 15 else "MEDIUM" if ela_score > 8 else "LOW"
         }
 
-        if ela_score > 18:
-            confidence += 30
+        # ELA thresholds raised: platform re-compression (WhatsApp/Facebook) routinely
+        # produces scores of 8–14 on authentic images — those should NOT flag as suspicious.
+        if ela_score > 22:
+            confidence += 28
             findings.append({
                 "type": "ELA: Critical Compression Mismatch",
                 "severity": "HIGH",
-                "details": f"Error Level Analysis score: {ela_score:.2f} (threshold: 15). Regions of the image show 3× higher re-compression error than surrounding areas. This pattern is a hallmark of image editing software such as Adobe Photoshop, GIMP, or Lightroom.",
-                "reason": f"Authentic JPEG images that have never been edited have a uniform ELA score across all regions. A score of {ela_score:.2f} indicates that specific regions were saved separately at a different quality level before being composited into this image.",
-                "technical": "ELA compares the original image with a re-compressed copy at Q=90. Differences > 15 indicate non-uniform compression history."
+                "details": f"Error Level Analysis score: {ela_score:.2f} (threshold: 22). Regions of the image show significantly higher re-compression error than surrounding areas. This pattern is a hallmark of image editing software such as Adobe Photoshop, GIMP, or Lightroom.",
+                "reason": f"Authentic JPEG images that have never been edited have a uniform ELA score across all regions. A score of {ela_score:.2f} strongly indicates that specific regions were composited from a separately-saved source.",
+                "technical": "ELA compares the original image with a re-compressed copy at Q=90. Differences > 22 indicate non-uniform compression history beyond platform re-compression norms."
             })
-        elif ela_score > 10:
-            confidence += 18
+        elif ela_score > 14:
+            confidence += 14
             findings.append({
                 "type": "ELA: Elevated Compression Anomaly",
                 "severity": "MEDIUM",
-                "details": f"ELA score of {ela_score:.2f} indicates moderate compression inconsistency. Some image regions may have been edited or independently saved.",
-                "reason": "Moderate ELA elevation can occur from platform re-compression (e.g., WhatsApp, Facebook) as well as deliberate editing. Context-dependent — requires cross-validation with other indicators.",
-                "technical": f"ELA score: {ela_score:.2f}. Range: normal < 8, suspicious 8–15, manipulated > 15."
+                "details": f"ELA score of {ela_score:.2f} indicates moderate compression inconsistency. Some image regions may have been edited. Note: scores between 10–14 can also result from WhatsApp/social media re-compression of authentic images.",
+                "reason": "Moderate ELA elevation is ambiguous — cross-validate with other indicators before concluding tampering.",
+                "technical": f"ELA score: {ela_score:.2f}. Normal camera JPEG: < 10. Platform-recompressed authentic: 10–14. Edited: > 14."
             })
         elif ela_score > 4:
-            confidence -= 5
+            confidence -= 6
             analysis_breakdown["ela"]["status"] = "PASS — within normal range for compressed images"
         else:
-            confidence -= 10
+            confidence -= 12
             analysis_breakdown["ela"]["status"] = "PASS — low compression artifact level"
 
         # ── 2. Noise Analysis ─────────────────────────────────────────────────
@@ -225,26 +230,30 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
             "interpretation": "ANOMALY" if noise_std > 55 or noise_std < 3 else "NORMAL"
         }
 
-        if noise_std > 60:
-            confidence += 18
+        # High-noise threshold raised from 60 → 75: busy/detailed real-world photos can
+        # have σ > 60 legitimately (high-contrast scenes, patterned textures).
+        if noise_std > 75:
+            confidence += 16
             findings.append({
                 "type": "Noise: Abnormal High Variance",
                 "severity": "HIGH",
-                "details": f"Pixel noise standard deviation: {noise_std:.1f} (expected: 10–50 for camera images). High variance across the image suggests copy-paste manipulation or image splicing from multiple sources.",
+                "details": f"Pixel noise standard deviation: {noise_std:.1f} (expected: 10–65 for camera images). Very high variance suggests copy-paste manipulation or image splicing from multiple sources.",
                 "reason": "Digital cameras produce a consistent noise signature across an image (ISO noise). When regions from different images or different ISO settings are composited, the noise pattern becomes statistically inconsistent.",
-                "technical": "Noise σ > 60 indicates multi-source image composition. Camera noise σ typically 8–30."
+                "technical": "Noise σ > 75 indicates likely multi-source image composition. Camera noise σ typically 8–50."
             })
-        elif noise_std < 3:
-            confidence += 12
+        elif noise_std < 1.5:
+            # Tightened from < 3 → < 1.5: smooth low-res thumbnails and PNG screenshots
+            # legitimately have σ between 1.5–3 but are not AI-generated.
+            confidence += 10
             findings.append({
                 "type": "Noise: Abnormally Low — Possible AI Generation",
                 "severity": "MEDIUM",
-                "details": f"Noise standard deviation: {noise_std:.1f} is unusually low, indicating excessive smoothing. AI-generated images (GAN/Diffusion models) often lack natural camera sensor noise.",
-                "reason": "Real camera images always contain sensor noise from photon detection uncertainty. An image with near-zero noise was likely generated by AI or heavily post-processed to remove forensic traces.",
-                "technical": "Diffusion models produce smooth pixel distributions. Authentic photos: σ > 5."
+                "details": f"Noise standard deviation: {noise_std:.1f} is near-zero, indicating excessive smoothing typical of AI-generated (GAN/Diffusion) images.",
+                "reason": "Real camera images contain sensor noise. Near-zero noise strongly suggests AI generation or extreme post-processing.",
+                "technical": "Diffusion models produce smooth pixel distributions. Authentic photos: σ > 3."
             })
         else:
-            confidence -= 5
+            confidence -= 6
             analysis_breakdown["noise"]["status"] = "PASS — noise within expected camera range"
 
         # ── 3. DCT (Frequency Domain) Analysis ───────────────────────────────
@@ -261,15 +270,21 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
             "description": "DCT frequency analysis. Manipulated images show abnormal high-frequency energy.",
         }
 
-        if freq_ratio > 0.05:
-            confidence += 14
+        # DCT threshold raised drastically from 0.05 → 0.18.
+        # The old threshold of 0.05 was triggered by virtually every real JPEG because
+        # standard JPEG compression naturally elevates DCT high-freq coefficients.
+        if freq_ratio > 0.18:
+            confidence += 12
             findings.append({
                 "type": "DCT: High-Frequency Artifact",
                 "severity": "MEDIUM",
-                "details": f"Discrete Cosine Transform analysis reveals elevated high-frequency energy (ratio: {freq_ratio:.4f}). This pattern appears in images where content from incompatible sources has been merged.",
-                "reason": "Image editing introduces blocking artifacts and ringing at region boundaries that appear as anomalous high-frequency DCT coefficients. Natural images have a smooth 1/f² frequency falloff.",
-                "technical": f"High/Low freq energy ratio: {freq_ratio:.4f}. Threshold: > 0.05 suspicious."
+                "details": f"Discrete Cosine Transform analysis reveals elevated high-frequency energy (ratio: {freq_ratio:.4f}). This level of high-frequency energy goes beyond normal JPEG compression and may indicate image composition from incompatible sources.",
+                "reason": "Image editing introduces blocking artifacts and ringing at region boundaries. Natural JPEG images have freq ratios typically below 0.12–0.15.",
+                "technical": f"High/Low freq energy ratio: {freq_ratio:.4f}. Suspicious threshold: > 0.18."
             })
+        else:
+            confidence -= 4
+            analysis_breakdown["dct_analysis"]["status"] = "PASS — frequency profile within normal JPEG range"
 
         # ── 4. Edge Consistency ───────────────────────────────────────────────
         edges = cv2.Canny(gray, 50, 150)
@@ -280,23 +295,25 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
             "interpretation": "HIGH" if edge_density > 0.35 else "NORMAL"
         }
 
-        if edge_density > 0.38:
-            confidence += 20
+        # Edge thresholds raised: high-detail real photos (city scenes, text documents,
+        # patterned fabric) have natural edge densities of 0.28–0.38.
+        if edge_density > 0.45:
+            confidence += 18
             findings.append({
                 "type": "Edge Detection: Copy-Move Forgery Indicator",
                 "severity": "HIGH",
-                "details": f"Edge density: {edge_density:.3f} (threshold: 0.35). Excessively sharp and numerous edges indicate that image regions were copy-pasted from another source. The boundary between original and pasted content creates detectable edge artifacts.",
-                "reason": "When content is duplicated within an image (copy-move forgery) or pasted from an external image, the edge characteristics at the boundary differ from naturally occurring edges, creating statistically anomalous edge patterns.",
-                "technical": f"Canny edge density: {edge_density:.3f}. Natural scenes average 0.10–0.25."
+                "details": f"Edge density: {edge_density:.3f} (threshold: 0.45). Excessively sharp and numerous edges suggest that image regions may have been copy-pasted from another source.",
+                "reason": "Copy-move forgery creates anomalous boundary patterns that produce unnaturally high edge counts not seen in genuine photographic scenes.",
+                "technical": f"Canny edge density: {edge_density:.3f}. Very high-detail natural scenes peak around 0.35–0.42."
             })
-        elif edge_density > 0.28:
-            confidence += 8
+        elif edge_density > 0.36:
+            confidence += 6
             findings.append({
                 "type": "Edge Detection: Elevated Boundary Artifacts",
-                "severity": "MEDIUM",
-                "details": f"Moderate edge density ({edge_density:.3f}) with some unnatural boundary patterns near key regions of the image.",
-                "reason": "Moderate edge elevation may indicate JPEG compression artifacts or minor editing. Cross-validate with ELA findings.",
-                "technical": f"Canny edge density: {edge_density:.3f}."
+                "severity": "LOW",
+                "details": f"Above-average edge density ({edge_density:.3f}). This may reflect a high-detail scene (text, architecture) or mild editing. Not conclusive in isolation.",
+                "reason": "Edge density alone is not a reliable indicator — cross-validate with ELA and DCT findings.",
+                "technical": f"Canny edge density: {edge_density:.3f}. Normal photo range: 0.08–0.35."
             })
 
         # ── 5. Color Histogram & Channel Consistency ──────────────────────────
@@ -336,12 +353,14 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
         }
 
         for warning in meta_warnings:
-            confidence += 10
+            # Reduced per-warning boost from +10 → +7: metadata timestamps are often
+            # legitimately off due to timezone differences, file copies, or cloud sync.
+            confidence += 7
             findings.append({
-                "type": "Metadata: Integrity Violation",
-                "severity": "MEDIUM",
+                "type": "Metadata: Integrity Anomaly",
+                "severity": "LOW",
                 "details": warning,
-                "reason": "Authentic files maintain consistent metadata across all embedded fields. A metadata warning indicates that the embedded information contradicts the file's actual properties, which can occur when metadata is manually altered to hide editing history.",
+                "reason": "Metadata inconsistencies can occur from legitimate file operations (cloud sync, timezone conversion, copy operations). A single metadata warning is not conclusive evidence of tampering without corroborating signals.",
                 "technical": "File system timestamps vs. embedded EXIF data cross-check."
             })
 
@@ -359,13 +378,16 @@ def analyze_image_advanced(file_path: str) -> Dict[str, Any]:
         closest = min(common_aspects, key=lambda x: abs(x - aspect))
         aspect_deviation = abs(aspect - closest)
 
-        if aspect_deviation > 0.1:
-            confidence += 8
+        # Aspect ratio deviation threshold tightened from 0.1 → 0.18 and boost halved
+        # from +8 → +4: many authentic photos are cropped for social media (square,
+        # portrait) and produce aspect ratios that legitimately deviate from camera defaults.
+        if aspect_deviation > 0.18:
+            confidence += 4
             findings.append({
                 "type": "Resolution: Non-Standard Aspect Ratio",
                 "severity": "LOW",
-                "details": f"Image dimensions {w}×{h} (aspect {aspect:.3f}) deviate from standard camera ratios (4:3, 3:2, 16:9). Images that have been cropped to hide content or to remove border watermarks show unusual proportions.",
-                "reason": "Cameras and standard capture devices produce images in well-defined aspect ratios. Unusual cropping often indicates content removal or screenshot manipulation.",
+                "details": f"Image dimensions {w}×{h} (aspect {aspect:.3f}) deviate significantly from standard camera ratios. Unusual cropping can indicate content removal, but social media crops also produce non-standard ratios.",
+                "reason": "Non-standard aspect ratios alone are not conclusive — many authentic images are legitimately cropped. Weight this only alongside HIGH-severity findings.",
                 "technical": f"Aspect ratio: {aspect:.3f}. Closest standard: {closest:.3f}. Deviation: {aspect_deviation:.3f}."
             })
 
@@ -1133,4 +1155,5 @@ async def root():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    # "main:app" string form is required when reload=True
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

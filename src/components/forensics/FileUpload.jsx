@@ -1,15 +1,25 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
-import { uploadFile } from '../../services/forensicsApi';
+import { uploadFile, analyzeWithAI, checkAIService } from '../../services/forensicsApi';
 
 const STEPS = [
-  { id: 1, icon: '📤', label: 'Uploading Evidence' },
+  { id: 1, icon: '📤', label: 'Uploading File' },
   { id: 2, icon: '🔐', label: 'Generating Hash' },
-  { id: 3, icon: '🔬', label: 'Forensic Analysis' },
+  { id: 3, icon: '🧬', label: 'Deepfake Analysis' },
   { id: 4, icon: '🧠', label: 'AI Assessment' },
   { id: 5, icon: '📋', label: 'Generating Report' },
 ];
+
+const getFileType = (file) => {
+  if (!file) return null;
+  const { type, name } = file;
+  if (type.startsWith('image/')) return 'image';
+  if (type.startsWith('video/')) return 'video';
+  if (type === 'application/pdf') return 'document';
+  if (name.endsWith('.txt') || type === 'text/plain') return 'chat';
+  return 'document';
+};
 
 const getFileTypeInfo = (file) => {
   if (!file) return null;
@@ -32,7 +42,13 @@ const FileUpload = () => {
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState(null);
+  const [aiOnline, setAiOnline] = useState(null); // null = checking
   const navigate = useNavigate();
+
+  // Check AI service health on mount
+  useEffect(() => {
+    checkAIService().then(online => setAiOnline(online));
+  }, []);
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
@@ -66,12 +82,34 @@ const FileUpload = () => {
     setError(null);
     setCurrentStep(0);
 
+    const fileType = getFileType(file);
+
     try {
-      const [response] = await Promise.all([uploadFile(file), simulateSteps()]);
-      navigate(`/forensics/report/${response.evidenceId}`);
+      if (aiOnline) {
+        // ── Path A: AI service is running — analyze directly ──────────────────
+        const evidenceId = `ev_${Date.now()}`;
+        const [result] = await Promise.all([
+          analyzeWithAI(file, evidenceId, fileType),
+          simulateSteps(),
+        ]);
+        // Store result in sessionStorage so the report page can pick it up
+        sessionStorage.setItem(`ai_result_${evidenceId}`, JSON.stringify({
+          ...result,
+          evidenceId,
+          fileName: file.name,
+          fileType,
+          fileSize: file.size,
+          analyzedAt: new Date().toISOString(),
+        }));
+        navigate(`/forensics/report/${evidenceId}?source=ai`);
+      } else {
+        // ── Path B: AI service offline — fall back to Node.js backend ─────────
+        const [response] = await Promise.all([uploadFile(file), simulateSteps()]);
+        navigate(`/forensics/report/${response.evidenceId}`);
+      }
     } catch (err) {
-      console.error('Upload failed:', err);
-      setError(err?.response?.data?.message || 'Analysis failed. Please try again.');
+      console.error('Upload/analysis failed:', err);
+      setError(err?.response?.data?.message || err?.message || 'Analysis failed. Please try again.');
       setLoading(false);
       setCurrentStep(0);
     }
@@ -81,6 +119,31 @@ const FileUpload = () => {
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 16px' }}>
+
+      {/* AI Service Status Badge */}
+      {aiOnline !== null && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+          padding: '8px 14px', borderRadius: '10px', marginBottom: '16px',
+          background: aiOnline ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+          border: `1px solid ${aiOnline ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}`,
+        }}>
+          <div style={{
+            width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+            background: aiOnline ? '#22c55e' : '#f59e0b',
+            boxShadow: aiOnline ? '0 0 6px #22c55e' : '0 0 6px #f59e0b',
+          }} />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: aiOnline ? '#86efac' : '#fcd34d' }}>
+            AI Service {aiOnline ? 'Online — deepfake analysis active' : 'Offline — using backend fallback'}
+          </span>
+          {!aiOnline && (
+            <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#64748b' }}>
+              Start: <code style={{ color: '#67e8f9', fontFamily: 'monospace' }}>cd ai-service &amp;&amp; python main.py</code>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Drop Zone */}
       <div
         {...getRootProps()}
@@ -98,10 +161,10 @@ const FileUpload = () => {
         {!file ? (
           <div>
             <div style={{ fontSize: '56px', marginBottom: '16px', filter: 'drop-shadow(0 0 20px rgba(6,182,212,0.4))' }}>
-              {isDragActive ? '📂' : '🗃️'}
+              {isDragActive ? '📂' : '🕵️'}
             </div>
             <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#f1f5f9', marginBottom: '8px' }}>
-              {isDragActive ? 'Drop evidence here' : 'Drop your evidence file'}
+              {isDragActive ? 'Drop file here' : 'Drop a file for deepfake detection'}
             </h3>
             <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>or click to browse from your device</p>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -136,7 +199,7 @@ const FileUpload = () => {
       {loading && (
         <div style={{ marginTop: '16px', padding: '20px 24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
           <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px', textAlign: 'center', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Running Forensic Analysis
+            {aiOnline ? '🧠 AI Deepfake Detection Running…' : 'Running Forensic Analysis…'}
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
             <div style={{ position: 'absolute', top: '18px', left: '10%', right: '10%', height: '2px', background: 'rgba(255,255,255,0.08)', zIndex: 0 }} />
@@ -165,7 +228,7 @@ const FileUpload = () => {
             ✕ Clear
           </button>
           <button onClick={handleUpload} style={{ flex: 1, padding: '14px', fontSize: '15px', letterSpacing: '0.02em', background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)', border: 'none', borderRadius: '10px', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-            🔬 Analyze Evidence
+            🕵️ Run Deepfake Detection
           </button>
         </div>
       )}
@@ -185,10 +248,10 @@ const FileUpload = () => {
       {!file && !loading && (
         <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {[
-            { icon: '🔒', text: 'End-to-end encrypted upload' },
-            { icon: '⚡', text: 'Results in under 60 seconds' },
-            { icon: '⛓️', text: 'Blockchain hash generated' },
-            { icon: '📑', text: 'Court-ready PDF report' },
+            { icon: '🧬', text: 'ELA + Noise + DCT analysis' },
+            { icon: '🎭', text: 'Face & blinking deepfake check' },
+            { icon: '📑', text: 'PDF structure & metadata check' },
+            { icon: '💬', text: 'Chat timestamp forensics' },
           ].map(tip => (
             <div key={tip.text} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
               <span style={{ fontSize: '14px' }}>{tip.icon}</span>

@@ -141,7 +141,7 @@ const HowItWorks = () => {
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
-            CrisisguardAI
+            Crisis Guard
           </span>{' '}
           Detects Manipulation
         </h1>
@@ -366,7 +366,7 @@ const HowItWorks = () => {
             </Link>
             <Link to="/about" style={{ textDecoration: 'none' }}>
               <button className="btn-secondary" style={{ padding: '15px 32px', fontSize: '16px' }}>
-                About CrisisguardAI →
+                About Crisis Guard →
               </button>
             </Link>
           </div>

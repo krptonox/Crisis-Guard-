@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getAllEvidences, exportCSV } from '../services/forensicsApi';
+import { getAllEvidences, exportCSV, checkAIService } from '../services/forensicsApi';
 import FileUpload from '../components/forensics/FileUpload';
 import api from '../services/forensicsApi';
 
@@ -39,11 +39,16 @@ const ForensicDashboard = () => {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [showUpload, setShowUpload] = useState(false);
-  const [backendOnline, setBackendOnline] = useState(null); // null = checking
+  const [backendOnline, setBackendOnline] = useState(null);  // Node.js backend (port 5000)
+  const [aiOnline, setAiOnline] = useState(null);            // Python AI service (port 8000)
 
-  useEffect(() => { fetchEvidences(); checkBackend(); }, []);
+  useEffect(() => { fetchEvidences(); checkServices(); }, []);
 
-  const checkBackend = async () => {
+  const checkServices = async () => {
+    // Check AI service (primary — required for deepfake detection)
+    const ai = await checkAIService();
+    setAiOnline(ai);
+    // Check Node.js backend (optional — for history & CSV export)
     try {
       await api.get('/health', { timeout: 3000 });
       setBackendOnline(true);
@@ -92,19 +97,35 @@ const ForensicDashboard = () => {
     <div className="app-root min-h-screen bg-bg" style={{ paddingTop: '80px' }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '40px 24px' }}>
 
-        {/* Backend Offline Notice */}
-        {backendOnline === false && (
+        {/* Service Status Banner */}
+        {aiOnline === true && (
+          // ── AI service is UP — show a clean green status bar ──────────────
+          <div style={{ marginBottom: '20px', padding: '10px 18px', background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e', flexShrink: 0 }} />
+            <span style={{ color: '#86efac', fontWeight: 700, fontSize: '13px' }}>AI Deepfake Engine Online</span>
+            <span style={{ color: '#475569', fontSize: '12px' }}>|</span>
+            <span style={{ color: '#64748b', fontSize: '12px' }}>ELA · Noise · DCT · Face · Blinking · PDF · Chat analysis active</span>
+            {backendOnline === false && (
+              <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#64748b' }}>
+                History / CSV export offline —{' '}
+                <code style={{ color: '#67e8f9', fontFamily: 'monospace' }}>cd backend &amp;&amp; npm start</code>
+              </span>
+            )}
+          </div>
+        )}
+
+        {aiOnline === false && (
+          // ── AI service is DOWN — show the warning ────────────────────────
           <div style={{ marginBottom: '24px', padding: '14px 20px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
             <span style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</span>
             <div>
-              <p style={{ color: '#fcd34d', fontWeight: 700, fontSize: '14px', marginBottom: '4px' }}>Backend Server Offline</p>
+              <p style={{ color: '#fcd34d', fontWeight: 700, fontSize: '14px', marginBottom: '4px' }}>AI Service Offline</p>
               <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.5 }}>
-                The forensics backend is not running. To enable evidence upload &amp; analysis, start the Node.js server:
+                Start the <strong style={{ color: '#e2e8f0' }}>Python AI service</strong> (deepfake detection engine) on port 8000:
               </p>
-              <code style={{ display: 'inline-block', marginTop: '8px', padding: '6px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '12px', color: '#67e8f9', fontFamily: 'monospace' }}>
-                cd backend &amp;&amp; npm install &amp;&amp; npm start
+              <code style={{ display: 'inline-block', marginTop: '6px', padding: '6px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', fontSize: '12px', color: '#67e8f9', fontFamily: 'monospace' }}>
+                cd ai-service &amp;&amp; python main.py
               </code>
-              <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px' }}>Also requires MongoDB and optionally the Python AI service on port 8000.</p>
             </div>
           </div>
         )}
@@ -114,13 +135,13 @@ const ForensicDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <p className="section-label" style={{ fontSize: '11px', color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, marginBottom: '4px' }}>
-              Investigation Center
+              AI Forensics Engine
             </p>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 800, color: '#f1f5f9' }}>
-              Forensic Evidence Dashboard
+              Deepfake Detection Dashboard
             </h1>
             <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>
-              {evidences.length} case{evidences.length !== 1 ? 's' : ''} in database
+              {evidences.length} case{evidences.length !== 1 ? 's' : ''} analyzed
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -128,7 +149,7 @@ const ForensicDashboard = () => {
               ⬇️ Export CSV
             </button>
             <button onClick={() => setShowUpload(v => !v)} className="btn-primary" style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)', border: 'none', padding: '10px 20px', borderRadius: '10px', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
-              {showUpload ? '✕ Close Upload' : '+ New Analysis'}
+              {showUpload ? '✕ Close' : '🕵️ New Deepfake Scan'}
             </button>
           </div>
         </div>
@@ -136,7 +157,7 @@ const ForensicDashboard = () => {
         {/* Inline Upload */}
         {showUpload && (
           <div className="glass-card" style={{ marginBottom: '28px', padding: '32px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
-            <h3 style={{ color: '#f1f5f9', fontWeight: 700, marginBottom: '20px', fontSize: '18px' }}>🔬 Upload New Evidence</h3>
+            <h3 style={{ color: '#f1f5f9', fontWeight: 700, marginBottom: '20px', fontSize: '18px' }}>🕵️ New Deepfake Detection Scan</h3>
             <FileUpload />
           </div>
         )}
@@ -144,8 +165,8 @@ const ForensicDashboard = () => {
         {/* Stats Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
           {[
-            { label: 'Total Analyzed', value: stats.total, color: '#06b6d4', icon: '🔬' },
-            { label: 'Tampered', value: stats.tampered, color: '#ef4444', icon: '❌' },
+            { label: 'Total Scanned', value: stats.total, color: '#06b6d4', icon: '🕵️' },
+            { label: 'Deepfake / Tampered', value: stats.tampered, color: '#ef4444', icon: '❌' },
             { label: 'Authentic', value: stats.authentic, color: '#22c55e', icon: '✅' },
             { label: 'Suspicious', value: stats.suspicious, color: '#f59e0b', icon: '⚠️' },
           ].map(stat => (
@@ -192,16 +213,16 @@ const ForensicDashboard = () => {
         {/* Content */}
         {filtered.length === 0 ? (
           <div className="glass-card" style={{ padding: '80px 40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '52px', marginBottom: '16px' }}>📭</div>
+            <div style={{ fontSize: '52px', marginBottom: '16px' }}>🕵️</div>
             <h3 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: '8px' }}>
-              {evidences.length === 0 ? 'No Evidence Analyzed Yet' : 'No Results Match Your Filters'}
+              {evidences.length === 0 ? 'No Files Scanned Yet' : 'No Results Match Your Filters'}
             </h3>
             <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
-              {evidences.length === 0 ? 'Upload your first file to start verifying digital evidence.' : 'Try adjusting your search or filters.'}
+              {evidences.length === 0 ? 'Upload your first image, video, or document to run deepfake detection.' : 'Try adjusting your search or filters.'}
             </p>
             {evidences.length === 0 && (
               <button onClick={() => setShowUpload(true)} style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)', border: 'none', padding: '12px 24px', borderRadius: '10px', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
-                Upload First Evidence
+                🕵️ Start First Scan
               </button>
             )}
           </div>

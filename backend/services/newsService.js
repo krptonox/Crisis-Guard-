@@ -3,7 +3,7 @@ const RSSParser = require('rss-parser');
 
 const parser = new RSSParser({
   timeout: 8000,
-  headers: { 'User-Agent': 'CrisisGuardAI/2.0 NewsBot' },
+  headers: { 'User-Agent': 'CrisisGuard/2.0 NewsBot' },
 });
 
 // ── Source credibility weights ───────────────────────────────────────────────

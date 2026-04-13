@@ -36,7 +36,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    service: 'CrisisguardAI Backend Node.js',
+    service: 'Crisis Guard Backend Node.js',
     version: '2.0.0',
     timestamp: new Date(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
@@ -47,7 +47,7 @@ app.get('/api/health', (req, res) => {
 // API info
 app.get('/api', (req, res) => {
   res.json({
-    service: 'CrisisguardAI Backend',
+    service: 'Crisis Guard Backend',
     version: '2.0.0',
     endpoints: {
       upload: 'POST /api/upload',

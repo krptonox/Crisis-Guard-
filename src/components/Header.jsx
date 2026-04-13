@@ -131,7 +131,7 @@ export default function Header() {
         {/* ── Nav links (center) ── */}
         <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <HeaderNavLink to="/" label="🌐 Globe" />
-          <HeaderNavLink to="/forensics" label="🔬 Forensics" />
+          <HeaderNavLink to="/forensics" label="🕵️ Deepfake Detection" />
           <HeaderNavLink to="/how-it-works" label="🛡️ How It Works" />
           <HeaderNavLink to="/about" label="ℹ️ About" />
         </nav>

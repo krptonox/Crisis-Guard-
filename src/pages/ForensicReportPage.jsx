@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { getEvidence, reanalyzeEvidence } from '../services/forensicsApi';
 import ResultDashboard from '../components/forensics/ResultDashboard';
 import ForensicReport from '../components/forensics/ForensicReport';
@@ -9,6 +9,8 @@ import autoTable from 'jspdf-autotable';
 
 const ForensicReportPage = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const isAiSource = searchParams.get('source') === 'ai';
   const [evidence, setEvidence] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,8 +25,36 @@ const ForensicReportPage = () => {
   const fetchEvidence = async () => {
     setLoading(true);
     try {
-      const data = await getEvidence(id);
-      setEvidence(data);
+      if (isAiSource) {
+        // Load result directly from sessionStorage (AI service path)
+        const raw = sessionStorage.getItem(`ai_result_${id}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // Normalize field names so child components work with both sources
+          setEvidence({
+            _id: parsed.evidenceId || id,
+            fileName: parsed.fileName,
+            originalName: parsed.fileName,
+            fileType: parsed.fileType,
+            fileSize: parsed.fileSize,
+            verdict: parsed.verdict,
+            confidence: parsed.confidence,
+            findings: parsed.findings || [],
+            analysis_breakdown: parsed.analysis_breakdown || {},
+            verdictReason: parsed.verdict_reason,
+            recommendations: parsed.recommendations || [],
+            fileHash: parsed.fileHash || '(computed by AI service)',
+            engineVersion: parsed.engineVersion || '2.0.0',
+            analyzedAt: parsed.analyzedAt,
+            source: 'ai-service',
+          });
+        } else {
+          setError('AI analysis result not found. The session may have expired.');
+        }
+      } else {
+        const data = await getEvidence(id);
+        setEvidence(data);
+      }
     } catch (err) {
       setError('Report not found or failed to load.');
     } finally {
@@ -68,7 +98,7 @@ const ForensicReportPage = () => {
 
       doc.setTextColor(...verdictColor);
       doc.setFontSize(22); doc.setFont('helvetica', 'bold');
-      doc.text('CRISISGUARDAI', 14, 20);
+      doc.text('CRISIS GUARD', 14, 20);
       doc.setFontSize(9); doc.setFont('helvetica', 'normal');
       doc.setTextColor(148, 163, 184);
       doc.text('Digital Evidence Forensic Report  |  ISO 27037 Aligned  |  Blockchain Evidence Trail', 14, 28);
@@ -153,7 +183,7 @@ const ForensicReportPage = () => {
       doc.setFontSize(7); doc.setTextColor(51, 65, 85);
       doc.text('LEGAL NOTICE: This AI-generated report supports preliminary assessment only. Human expert certification is required for court submission.', 14, finalY);
       doc.setTextColor(6, 182, 212);
-      doc.text('CrisisguardAI — Globe Intelligence Platform', 14, finalY + 8);
+      doc.text('Crisis Guard — Globe Intelligence Platform', 14, finalY + 8);
 
       doc.save(`forensic_report_${evidence._id}.pdf`);
       setDownloaded(true);
@@ -204,16 +234,23 @@ const ForensicReportPage = () => {
         {/* Breadcrumb + Actions */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-            <Link to="/forensics" style={{ color: '#64748b', textDecoration: 'none' }}>Evidence Dashboard</Link>
+            <Link to="/forensics" style={{ color: '#64748b', textDecoration: 'none' }}>Deepfake Detection</Link>
             <span style={{ color: '#334155' }}>→</span>
             <span style={{ color: '#94a3b8', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {evidence.originalName || evidence.fileName}
             </span>
+            {isAiSource && (
+              <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(34,197,94,0.1)', color: '#86efac', border: '1px solid rgba(34,197,94,0.2)', fontWeight: 700 }}>
+                AI SERVICE
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button onClick={handleReanalyze} disabled={reanalyzing} style={{ fontSize: '13px', padding: '9px 16px', display: 'flex', alignItems: 'center', gap: '6px', background: reanalyzed ? 'rgba(34,197,94,0.1)' : 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: reanalyzed ? '#86efac' : '#94a3b8', cursor: reanalyzing ? 'not-allowed' : 'pointer' }}>
-              {reanalyzing ? '⏳ Re-analyzing...' : reanalyzed ? '✓ Re-analyzed!' : '🔄 Re-Analyze'}
-            </button>
+            {!isAiSource && (
+              <button onClick={handleReanalyze} disabled={reanalyzing} style={{ fontSize: '13px', padding: '9px 16px', display: 'flex', alignItems: 'center', gap: '6px', background: reanalyzed ? 'rgba(34,197,94,0.1)' : 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: reanalyzed ? '#86efac' : '#94a3b8', cursor: reanalyzing ? 'not-allowed' : 'pointer' }}>
+                {reanalyzing ? '⏳ Re-analyzing...' : reanalyzed ? '✓ Re-analyzed!' : '🔄 Re-Analyze'}
+              </button>
+            )}
             <button onClick={downloadPDF} disabled={downloading} style={{ fontSize: '13px', padding: '9px 18px', display: 'flex', alignItems: 'center', gap: '6px', background: downloaded ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #06b6d4, #8b5cf6)', border: 'none', borderRadius: '8px', color: 'white', cursor: downloading ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
               {downloading ? '⏳ Generating...' : downloaded ? '✓ Downloaded!' : '📄 Download PDF'}
             </button>
@@ -262,8 +299,8 @@ const ForensicReportPage = () => {
         {/* Bottom CTA */}
         <div className="glass-card" style={{ marginTop: '24px', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', borderTop: `2px solid ${verdictColor}33` }}>
           <div>
-            <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: '4px' }}>Need to analyze more evidence?</h4>
-            <p style={{ color: '#64748b', fontSize: '13px' }}>Upload additional files for a comprehensive case investigation.</p>
+            <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: '4px' }}>Scan another file?</h4>
+            <p style={{ color: '#64748b', fontSize: '13px' }}>Run deepfake detection on more images, videos, or documents.</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <Link to="/forensics" style={{ textDecoration: 'none' }}>

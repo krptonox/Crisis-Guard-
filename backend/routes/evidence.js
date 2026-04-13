@@ -146,7 +146,7 @@ router.get('/evidences/export/csv', async (req, res) => {
 
         const csv = rows.map(r => r.join(',')).join('\n');
         res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', 'attachment; filename=crisisguardai_evidence_export.csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=crisis_guard_evidence_export.csv');
         res.send(csv);
     } catch (error) {
         console.error('CSV export error:', error);

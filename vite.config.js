@@ -11,6 +11,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // Python AI service (FastAPI) — deepfake & forensic analysis
+      '/ai-service': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/ai-service/, ''),
+      },
     },
   },
 });

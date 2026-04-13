@@ -25,6 +25,68 @@ api.interceptors.response.use(
   }
 );
 
+// =============================================================================
+// AI SERVICE — Python FastAPI (port 8000) via /ai-service Vite proxy
+// Run: cd ai-service && pip install -r requirements.txt && python main.py
+// =============================================================================
+
+const AI_SERVICE_BASE = import.meta.env.VITE_AI_SERVICE_URL || '/ai-service';
+
+export const aiServiceApi = axios.create({
+  baseURL: AI_SERVICE_BASE,
+  timeout: 120000, // analysis can take up to 2 min for large videos
+});
+
+aiServiceApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.response || error.response.status >= 500) {
+      console.warn('AI service unavailable (port 8000):', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Check if the Python AI service is running.
+ * Returns true if healthy, false if offline.
+ */
+export const checkAIService = async () => {
+  try {
+    await aiServiceApi.get('/health', { timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Send a file directly to the Python AI service for deepfake / forensic analysis.
+ * The AI service returns a full analysis result without needing the Node.js backend.
+ *
+ * @param {File} file - The file to analyze
+ * @param {string} evidenceId - A unique ID to track this analysis (can be a timestamp)
+ * @param {string} fileType - 'image' | 'video' | 'document' | 'chat'
+ * @param {function} onUploadProgress - optional axios upload progress callback
+ * @returns {Promise<object>} analysis result from the AI service
+ */
+export const analyzeWithAI = async (file, evidenceId, fileType, onUploadProgress) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('evidenceId', evidenceId);
+  formData.append('fileType', fileType);
+
+  const response = await aiServiceApi.post('/analyze', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress,
+  });
+  return response.data;
+};
+
+// =============================================================================
+// NODE.JS BACKEND  — evidence storage, retrieval, CSV export
+// =============================================================================
+
 /** Upload evidence file for forensic analysis */
 export const uploadFile = async (file, onProgress) => {
   const formData = new FormData();
@@ -62,7 +124,7 @@ export const getAllEvidences = async (filters = {}) => {
   }
 };
 
-/** Trigger re-analysis on an existing evidence file */
+/** Trigger re-analysis on an existing evidence record */
 export const reanalyzeEvidence = async (id) => {
   const response = await api.post(`/reanalyze/${id}`);
   return response.data;

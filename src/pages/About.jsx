@@ -42,7 +42,7 @@ const IMPACT_CASES = [
     icon: '📱',
     title: 'WhatsApp Screenshot Fraud',
     scenario: 'A manipulated WhatsApp screenshot was submitted as evidence in a harassment case.',
-    outcome: 'CrisisguardAI detected timestamp region compression inconsistency and font anomaly. Confidence: 94.7% Tampered.',
+    outcome: 'Crisis Guard detected timestamp region compression inconsistency and font anomaly. Confidence: 94.7% Tampered.',
     verdict: 'Tampered',
   },
   {
@@ -108,7 +108,7 @@ const About = () => {
           </span>
         </h1>
         <p className="animate-fade-in-up delay-200" style={{ color: '#64748b', fontSize: '17px', lineHeight: 1.8 }}>
-          CrisisguardAI was built to solve a critical gap: powerful digital forensics tools exist, but they're expensive, complex, and inaccessible to ordinary people who need them most — in harassment cases, fraud disputes, and family court proceedings.
+          Crisis Guard was built to solve a critical gap: powerful digital forensics tools exist, but they're expensive, complex, and inaccessible to ordinary people who need them most — in harassment cases, fraud disputes, and family court proceedings.
         </p>
       </section>
 
@@ -326,7 +326,7 @@ const About = () => {
         </blockquote>
         <Link to="/" style={{ textDecoration: 'none' }}>
           <button className="btn-primary" style={{ padding: '16px 36px', fontSize: '16px' }}>
-            🔬 Try CrisisguardAI Free
+            🔬 Try Crisis Guard Free
           </button>
         </Link>
       </section>

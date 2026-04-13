@@ -322,7 +322,7 @@ const CrisisChatbot = () => {
     {
       id: 'welcome',
       role: 'bot',
-      content: "👋 I'm the CrisisGuard Intelligence Bot. I verify real-time crisis claims using live news & AI analysis. Ask me anything — I'll tell you what's verified, suspicious, or misinformation.",
+      content: "👋 I'm the Crisis Guard Intelligence Bot. I verify real-time crisis claims using live news & AI analysis. Ask me anything — I'll tell you what's verified, suspicious, or misinformation.",
       data: null,
     }
   ]);
@@ -469,7 +469,7 @@ const CrisisChatbot = () => {
       <button
         id="crisis-chatbot-fab"
         onClick={() => setOpen(o => !o)}
-        aria-label="Open CrisisGuard Intelligence Bot"
+        aria-label="Open Crisis Guard Intelligence Bot"
         style={{
           position: 'fixed', bottom: 28, right: 28, zIndex: 9999,
           width: 60, height: 60, borderRadius: '50%', border: 'none', cursor: 'pointer',
@@ -538,7 +538,7 @@ const CrisisChatbot = () => {
                   🛡️
                 </div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>CrisisGuard Bot</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>Crisis Guard Bot</div>
                   <div style={{ fontSize: 11, color: mode.color, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 4px #22c55e' }} />
                     {mode.emoji} {mode.label} · Real-time Verification
@@ -584,7 +584,7 @@ const CrisisChatbot = () => {
               </button>
             </div>
             <div style={{ marginTop: 8, fontSize: 10, color: '#334155', textAlign: 'center' }}>
-              Powered by CrisisGuard AI · Live RSS news
+              Powered by Crisis Guard · Live RSS news
             </div>
           </div>
         </div>

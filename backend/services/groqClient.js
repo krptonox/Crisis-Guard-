@@ -93,7 +93,7 @@ const generateResponse = async (verificationResult, originalQuery, mode) => {
         ).join('\n\n')
       : 'No directly relevant articles found in live news feeds right now.';
 
-    const prompt = `You are CrisisGuard AI — a real-time crisis intelligence system.
+    const prompt = `You are Crisis Guard — a real-time crisis intelligence system.
 
 TASK: Write a factual 3-4 sentence analysis of the user's query, based ONLY on the live news articles below.
 
