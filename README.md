@@ -1,11 +1,7 @@
 <div align="center">
 
 # 🌐 Crisis-Guard AI
-### Global Intelligence Dashboard
 
-> **Real-time geopolitical crisis monitoring powered by a 3D interactive globe, AI trust-scoring, and live news intelligence feeds.**
-
----
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL-black?style=for-the-badge&logo=three.js)](https://threejs.org)
